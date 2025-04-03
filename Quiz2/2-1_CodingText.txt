@@ -1,0 +1,12 @@
+#include <string>
+#include <vector>
+
+using namespace std;
+
+
+int solution(int n, int k) {
+    int nPrice_Lamb = 12000;
+	int nPrice_Drink = 2000;
+	int nDiscountDrink = n / 10;
+	return (n * nPrice_Lamb) + (k * nPrice_Drink) - (nDiscountDrink * nPrice_Drink);
+}

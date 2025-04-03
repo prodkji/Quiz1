@@ -1,0 +1,74 @@
+#include <string>
+#include <vector>
+
+using namespace std;
+
+int solution(int a, int b, int c, int d) {
+    vector<int> vtDice = { a, b, c, d };
+	vector<int> vtFreq(7);
+	for (int x : vtDice) vtFreq[x]++;
+
+	// Case 1: 네개가 같음.
+	for (int num = 1; num <= 6; num++) {
+		if (vtFreq[num] == 4) {
+			return 1111 * num;
+		}
+	}
+
+	// Case 2: 세개가 같음.
+	for (int num = 1; num <= 6; num++) {
+		if (vtFreq[num] == 3) {
+			int p = num;
+			int q = 0;
+			for (int j = 1; j <= 6; j++) {
+				if (vtFreq[j] == 1) {
+					q = j;
+					break;
+				}
+			}
+			return (10 * p + q) * (10 * p + q);
+		}
+	}
+
+	int nDifferenceCount = 0;
+	for (int num = 1; num <= 6; num++) {
+		if (vtFreq[num] > 0)
+			nDifferenceCount++;
+	}
+
+	// Case 3: 두 개씩 짝궁.
+	if (nDifferenceCount == 2) {
+		vector<int> vtPair;
+		for (int num = 1; num <= 6; num++) {
+			if (vtFreq[num] == 2)
+				vtPair.push_back(num);
+		}
+		if (vtPair.size() == 2) {
+			int p = vtPair[0], q = vtPair[1];
+			return (p + q) * abs(p - q);
+		}
+	}
+
+	// Case 4: 두 개가 같고, 두개는 다름.
+	if (nDifferenceCount == 3)
+	{
+		int pairNum = 0;
+		vector<int> vtNoPair;
+		for (int num = 1; num <= 6; num++) {
+			if (vtFreq[num] == 2)
+				pairNum = num;
+			else if (vtFreq[num] == 1)
+				vtNoPair.push_back(num);
+		}
+		// 다른 애들끼리 곱하기를 반환
+		if (vtNoPair.size() == 2) {
+			return vtNoPair[0] * vtNoPair[1];
+		}
+	}
+
+	// Case 5: 모두 다름
+	if (nDifferenceCount == 4) {
+		return min(min(a, b), min(c, d));
+	}
+    return 0;
+}
