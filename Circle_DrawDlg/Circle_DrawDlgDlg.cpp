@@ -308,7 +308,7 @@ void CCircleDrawDlgDlg::BufferDraw()
 	{
 		CPoint center = CalculateCircleCenter();
 		double radius = CalculateRadius(center);
-		DrawCircle(fm, center.x, center.y, radius, m_nPenSize);
+		DrawCircle(fm, center.x, center.y, (int)radius, m_nPenSize);
 
 		DrawPoint(fm, center.x, center.y, m_nPointSize, 0, 0, 255);
 	}
