@@ -38,6 +38,8 @@ UINT WorkThread(LPVOID pParam)
 
 			while (true) {
 
+				if (!pMainDlg->m_bWorkThreadStart) break;
+
 				dwResult = WaitForSingleObject(pMainDlg->m_evtTerminateThread, 1);
 				if (dwResult == WAIT_OBJECT_0) {
 					m_bTerminate = true;
@@ -48,6 +50,8 @@ UINT WorkThread(LPVOID pParam)
 				auto duration = duration_cast<seconds>(now - start);
 
 				if (duration.count() >= 2) {
+
+					pMainDlg->strCnt.Format(_T("%d"), pMainDlg->m_nRandomCount);
 					pMainDlg->MakeRandomCircle();
 					pMainDlg->m_nRandomCount--;
 					if (pMainDlg->m_nRandomCount == 0)pMainDlg->m_bWorkThreadStart = false;
@@ -158,27 +162,19 @@ BOOL CCircleDrawDlgDlg::OnInitDialog()
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	
-	((CComboBox*)GetDlgItem(IDC_COMBO_POINTSIZE))->SetCurSel(m_nPointSize - 1);
+	((CComboBox*)GetDlgItem(IDC_COMBO_POINTSIZE))->SetCurSel(m_nPointSize - 3);
 	((CComboBox*)GetDlgItem(IDC_COMBO_PENSIZE))->SetCurSel(m_nPenSize - 1);
 
 	CRect ChecRectSize;
 	this->GetWindowRect(ChecRectSize);
-//	m_CanvSize.x = ChecRectSize.Width();
-//	m_CanvSize.y = ChecRectSize.Height() - 100;
 
+	strCnt = _T("");
 	m_CanvSize.x = 640;
 	m_CanvSize.y = 480;
 	
-	int nBpp = 32;
+	int nBpp = 32; // Make color buffer
 	m_ImageBuf.Create(m_CanvSize.x, -m_CanvSize.y, nBpp);
-
-/*	if (nBpp == 8) {
-		static RGBQUAD rgb[256];
-		for (int i = 0; i < 255; i++)
-			rgb[i].rgbRed = rgb[i].rgbGreen = rgb[i].rgbBlue = i;
-		m_ImageBuf.SetColorTable(0, 256, rgb);
-	}*/
-
+	m_nPitch = m_ImageBuf.GetPitch();
 	BufferClear();
 
 	m_nRandomCount = 0;
@@ -210,7 +206,7 @@ void CCircleDrawDlgDlg::OnSysCommand(UINT nID, LPARAM lParam)
 void CCircleDrawDlgDlg::BufferClear()
 {
 	unsigned char* fm = (unsigned char*)m_ImageBuf.GetBits();
-	memset(fm, 254, m_CanvSize.x * m_CanvSize.y * 4);
+	memset(fm, 0xff, m_CanvSize.x * m_CanvSize.y * 4);
 }
 
 void CCircleDrawDlgDlg::OnPaint()
@@ -238,7 +234,12 @@ void CCircleDrawDlgDlg::OnPaint()
 		if (m_ImageBuf)
 		{
 			m_ImageBuf.BitBlt(dc.m_hDC, 0, 0, SRCCOPY);
-			//m_ImageBuf.Draw(dc, 0, 0);
+
+			if (strCnt.GetLength()>0)
+			{
+				strCnt.Format(_T("%d"), m_nRandomCount);
+				dc.DrawText(strCnt, CRect(10, 10, 100, 50), TA_TOP);
+			}
 		}
 		CDialogEx::OnPaint();
 	}
@@ -252,66 +253,81 @@ HCURSOR CCircleDrawDlgDlg::OnQueryDragIcon()
 }
 
 
-void CCircleDrawDlgDlg::DrawCircle()
+void CCircleDrawDlgDlg::DrawPoint(unsigned char* fm, int nCenterX, int nCenterY, int nRadius, int nBlue, int nGreen, int nRed)
 {
-	if (m_vtPoints.size() < 3) return;
+	for (int y = -nRadius; y <= nRadius; y++) {
+		for (int x = -nRadius; x <= nRadius; x++) {
+			if (x * x + y * y <= nRadius * nRadius) {
+				int px = nCenterX + x;
+				int py = nCenterY + y;
 
-	BufferClear();
-	CDC* pDC = CDC::FromHandle(m_ImageBuf.GetDC());
-
-	CPoint center = CalculateCircleCenter();
-	double radius = CalculateRadius(center);
-	CPen pen(PS_SOLID, m_nPenSize, RGB(0, 0, 0));
-	CPen* oldPen = pDC->SelectObject(&pen);
-	pDC->Ellipse(int(center.x - radius), int(center.y - radius), int(center.x + radius), int(center.y + radius));
-
-	if (m_bWorkThreadStart)
-	{
-		CString strCount;
-		strCount.Format(_T("%d"), m_nRandomCount);
-		pDC->SetTextColor(RGB(0, 0, 255));
-		pDC->DrawText(strCount, CRect(5, 5, 100, 40), DT_SINGLELINE | DT_VCENTER);
-	}
-	
-	CPen pen2(PS_SOLID, 5, RGB(255, 0, 0));
-	oldPen = pDC->SelectObject(&pen2);
-	pDC->Ellipse(center.x - 2, center.y - 2, center.x + 2, center.y + 2);
-	m_ImageBuf.ReleaseDC();
-	DrawPoint();
-}
-
-
-void CCircleDrawDlgDlg::DrawPoint()
-{
-	if (m_vtPoints.size() < 1) return;
-	else {
-		CDC* pDC = CDC::FromHandle(m_ImageBuf.GetDC());
-		CPen pen(PS_SOLID, m_nPointSize, RGB(0, 0, 0));
-		CPen* oldPen = pDC->SelectObject(&pen);
-		for (int i = 0; i < m_vtPoints.size(); i++)
-		{
-			pDC->Ellipse(m_vtPoints[i].x - 2, m_vtPoints[i].y - 2, m_vtPoints[i].x + 2, m_vtPoints[i].y + 2);
+				if (px >= 0 && px < m_CanvSize.x && py >= 0 && py < m_CanvSize.y) {
+					BYTE* pixel = fm + (py * m_nPitch) + (px * 4);
+					pixel[0] = nBlue;		// B Channel
+					pixel[1] = nGreen;		// G Channel
+					pixel[2] = nRed;		// R Channel
+					pixel[3] = 255;			// A Channel
+				}
+			}
 		}
-		m_ImageBuf.ReleaseDC();
 	}
 }
 
+void CCircleDrawDlgDlg::DrawCircle(unsigned char* fm, int nCenterX, int nCenterY, int nRadius, int nBorder, int nBlue, int nGreen, int nRed)
+{
+	for (int y = -nRadius - nBorder; y <= nRadius + nBorder; y++) {
+		for (int x = -nRadius - nBorder; x <= nRadius + nBorder; x++) {
+			int distance = x * x + y * y;
+			int outerRadius = (nRadius + nBorder) * (nRadius + nBorder);
+			int innerRadius = (nRadius - nBorder) * (nRadius - nBorder);
+
+			// Border 범위 점검.
+			if (distance <= outerRadius && distance >= innerRadius)	{
+				int px = nCenterX + x;
+				int py = nCenterY + y;
+
+				if (px >= 0 && px < m_CanvSize.x && py >= 0 && py < m_CanvSize.y) {
+					BYTE* pixel = fm + (py * m_nPitch) + (px * 4);
+					pixel[0] = nBlue;		// B Channel
+					pixel[1] = nGreen;		// G Channel
+					pixel[2] = nRed;		// R Channel
+					pixel[3] = 255;			// A Channel
+				}
+			}
+		}
+	}
+}
+
+void CCircleDrawDlgDlg::BufferDraw()
+{
+	BufferClear();
+
+	unsigned char* fm = (unsigned char*)m_ImageBuf.GetBits();
+
+	if (m_vtPoints.size() == 3)
+	{
+		CPoint center = CalculateCircleCenter();
+		double radius = CalculateRadius(center);
+		DrawCircle(fm, center.x, center.y, radius, m_nPenSize);
+
+		DrawPoint(fm, center.x, center.y, m_nPointSize, 0, 0, 255);
+	}
+
+	if (m_vtPoints.size() < 4)
+	{
+		for(int n=0; n< m_vtPoints.size(); n++) {
+			DrawPoint(fm, m_vtPoints[n].x, m_vtPoints[n].y, m_nPointSize, 255, 0, 0);
+		}
+	}
+}
 
 void CCircleDrawDlgDlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
-	if (m_vtPoints.size() < 3)
-	{
+	if (m_vtPoints.size() < 3) {
 		m_vtPoints.push_back(point);
-		DrawPoint();
-
-		if (m_vtPoints.size() == 3)
-		{
-			DrawCircle();
-		}
-
 	}
 	else {
-		// 체크해서 드래그 시작할지 결정
+		// 포인트 범위 클릭위치 체크
 		for (int i = 0; i < 3; ++i) {
 			if (abs(m_vtPoints[i].x - point.x) < m_nPointSize && abs(m_vtPoints[i].y - point.y) < m_nPointSize) {
 				m_bIsDragging = true;
@@ -320,18 +336,17 @@ void CCircleDrawDlgDlg::OnLButtonDown(UINT nFlags, CPoint point)
 			}
 		}
 	}
+	BufferDraw();
 	Invalidate();
 
 	CDialogEx::OnLButtonDown(nFlags, point);
 }
 
-
 void CCircleDrawDlgDlg::OnMouseMove(UINT nFlags, CPoint point)
 {
-
 	if (m_bIsDragging && m_nDragIndex != -1) {
 		m_vtPoints[m_nDragIndex] = point;
-		DrawCircle();
+		BufferDraw();
 		Invalidate();
 	}
 
@@ -372,29 +387,25 @@ void CCircleDrawDlgDlg::OnLButtonUp(UINT nFlags, CPoint point)
 
 void CCircleDrawDlgDlg::OnBnClickedButtonInit()
 {
+	strCnt = _T("");
 	m_vtPoints.clear();
 	BufferClear();
 	Invalidate();
 }
 
-
 void CCircleDrawDlgDlg::OnSelchangeComboPointsize()
 {
-	m_nPointSize = ((CComboBox*)GetDlgItem(IDC_COMBO_POINTSIZE))->GetCurSel() + 1;
-	DrawPoint();
-	DrawCircle();
+	m_nPointSize = ((CComboBox*)GetDlgItem(IDC_COMBO_POINTSIZE))->GetCurSel() + 3;
+	BufferDraw();
 	Invalidate();
 }
-
 
 void CCircleDrawDlgDlg::OnCbnSelchangeComboPensize()
 {
 	m_nPenSize = ((CComboBox*)GetDlgItem(IDC_COMBO_PENSIZE))->GetCurSel()+1;
-	DrawPoint();
-	DrawCircle();
+	BufferDraw();
 	Invalidate();
 }
-
 
 void CCircleDrawDlgDlg::MakeRandomCircle()
 {
@@ -407,29 +418,31 @@ void CCircleDrawDlgDlg::MakeRandomCircle()
 		RdPoint.y = rand() % 481;
 		m_vtPoints.push_back(RdPoint);
 
-		DrawPoint();
-		DrawCircle();
+		BufferDraw();
 	}
 	Invalidate();
 }
 
 void CCircleDrawDlgDlg::OnBnClickedButtonRandomcircle()
 {
+	strCnt = _T("");
 	MakeRandomCircle();
 }
 
-
 void CCircleDrawDlgDlg::OnBnClickedButtonRandomcircle2()
 {
-	if (m_bWorkThreadStart) m_bWorkThreadStart = false;
+	if (m_bWorkThreadStart) {
+
+		SetDlgItemText(IDC_BUTTON_RANDOMCIRCLE2, _T("무작위 생성 시작"));
+		m_bWorkThreadStart = false;
+	}
 	else {
+		SetDlgItemText(IDC_BUTTON_RANDOMCIRCLE2, _T("무작위 생성 멈춤"));
+		strCnt = _T("");
 		m_nRandomCount = 10;
 		m_bWorkThreadStart = true;
 	}
 }
-
-
-
 
 void CCircleDrawDlgDlg::OnOK()
 {

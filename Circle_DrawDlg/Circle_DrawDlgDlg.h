@@ -41,24 +41,27 @@ public:
 	int		m_nPointSize = 5;
 	CPoint	m_CanvSize;
 	CImage	m_ImageBuf;
+	int		m_nPitch;
 
 	std::vector<CPoint> m_vtPoints;
 
 	bool m_bIsDragging = false;
 	int m_nDragIndex = -1;
 
-	void DrawCircle();
-	void DrawPoint();
 	void BufferClear();
+	void BufferDraw();
+	void DrawPoint(unsigned char* fm, int nCenterX, int nCenterY, int nRadius, int nBlue = 0, int nGreen = 0, int nRed = 0);
+	void DrawCircle(unsigned char* fm, int nCenterX, int nCenterY, int nRadius, int nBorder, int nBlue = 0, int nGreen = 0, int nRed = 0);
 	CPoint CalculateCircleCenter();
 	double CalculateRadius(const CPoint& center);
+	bool isInCircle(int i, int j, int nCenterX, int nCenterY, int nRadius);
 
 
 	CWinThread* m_pWorkThreadHandle;
 	CEvent		m_evtTerminateThread;
 	CEvent		m_evtTerminateThreadDone;
 	bool		m_bWorkThreadStart;
-
+	CString		strCnt;
 
 	int			m_nRandomCount;
 	void		MakeRandomCircle();
